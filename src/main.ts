@@ -1,6 +1,7 @@
 import './style.css'
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { div } from 'three/examples/jsm/nodes/Nodes.js';
 
 let container: HTMLDivElement;
 
@@ -22,17 +23,35 @@ function init() {
 
 	scene.add( new THREE.AmbientLight( 0xffffff ) );
 
-	const geometry = new THREE.PlaneGeometry(4, 4, 4, 4)
+	const curve = new THREE.EllipseCurve(
+		0,  0,            // ax, aY
+		1, 0.5,           // xRadius, yRadius
+		0,  Math.PI ,  // aStartAngle, aEndAngle
+	);
+
+	const points = curve.getPoints( 50 );
+	const geo2 = new THREE.BufferGeometry().setFromPoints( points );
+
+	const mat2 = new THREE.LineBasicMaterial( { color: 0xff0000 } );
+
+	// Create the final object to add to the scene
+	const ellipse = new THREE.Line( geo2, mat2 );
+
+	const divisions = 50
+	const geometry = new THREE.PlaneGeometry(4, 4, divisions, divisions)
 	const positions = geometry.getAttribute('position');
-	let v = new THREE.Vector3(0, 0, 0);
-	console.log(positions.getZ(0))
-	positions.setZ(0, 1);
-	const material = new THREE.MeshBasicMaterial()
+	const planePoints = curve.getPoints( divisions + 1 );
+
+	for (let i = 0; i < positions.count; i++) {
+		const point = planePoints[i % (divisions + 1)]
+		positions.setXYZ(i, point.x, positions.getY(i), point.y)
+	}
+	const material = new THREE.MeshBasicMaterial({ wireframe: true })
 	const plane = new THREE.Mesh(geometry, material)
 	plane.position.z = -15
 	scene.add(plane)
 
-
+	scene.add(ellipse);
 	renderer = new THREE.WebGLRenderer( { antialias: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
 	renderer.setSize( window.innerWidth, window.innerHeight );
