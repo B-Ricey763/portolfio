@@ -1,14 +1,17 @@
 import './style.css'
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { div } from 'three/examples/jsm/nodes/Nodes.js';
+
+const PLANE_SEGMENTS = 16
 
 let container: HTMLDivElement;
-
 let camera: THREE.PerspectiveCamera, scene: THREE.Scene, renderer: THREE.WebGLRenderer;
 let controls: OrbitControls;
+let positions: THREE.BufferAttribute;
+let curve: THREE.EllipseCurve;
+let x = 0;
+let plane: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial, THREE.Object3DEventMap>;
 
-let windowHalfX = window.innerWidth / 2;
 
 init();
 animate();
@@ -23,35 +26,22 @@ function init() {
 
 	scene.add( new THREE.AmbientLight( 0xffffff ) );
 
-	const curve = new THREE.EllipseCurve(
+	curve = new THREE.EllipseCurve(
 		0,  0,            // ax, aY
 		1, 0.5,           // xRadius, yRadius
 		0,  Math.PI ,  // aStartAngle, aEndAngle
 	);
+	
 
-	const points = curve.getPoints( 50 );
-	const geo2 = new THREE.BufferGeometry().setFromPoints( points );
+	const geometry = new THREE.PlaneGeometry(4, 4, PLANE_SEGMENTS, PLANE_SEGMENTS)
+	positions = geometry.getAttribute('position') as THREE.BufferAttribute;
+	applyCurveToPlane(positions, curve)
 
-	const mat2 = new THREE.LineBasicMaterial( { color: 0xff0000 } );
-
-	// Create the final object to add to the scene
-	const ellipse = new THREE.Line( geo2, mat2 );
-
-	const divisions = 50
-	const geometry = new THREE.PlaneGeometry(4, 4, divisions, divisions)
-	const positions = geometry.getAttribute('position');
-	const planePoints = curve.getPoints( divisions + 1 );
-
-	for (let i = 0; i < positions.count; i++) {
-		const point = planePoints[i % (divisions + 1)]
-		positions.setXYZ(i, point.x, positions.getY(i), point.y)
-	}
 	const material = new THREE.MeshBasicMaterial({ wireframe: true })
-	const plane = new THREE.Mesh(geometry, material)
+	plane = new THREE.Mesh(geometry, material)
 	plane.position.z = -15
 	scene.add(plane)
 
-	scene.add(ellipse);
 	renderer = new THREE.WebGLRenderer( { antialias: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
 	renderer.setSize( window.innerWidth, window.innerHeight );
@@ -66,13 +56,17 @@ function init() {
 	//
 
 	window.addEventListener( 'resize', onWindowResize );
+}
 
+function applyCurveToPlane(positions: THREE.BufferAttribute, curve: THREE.EllipseCurve) {
+	const planePoints = curve.getPoints( PLANE_SEGMENTS + 1 );
+	for (let i = 0; i < positions.count; i++) {
+		const point = planePoints[i % (PLANE_SEGMENTS + 1)]
+		positions.setXYZ(i, point.x, positions.getY(i), point.y)
+	}
 }
 
 function onWindowResize() {
-
-	windowHalfX = window.innerWidth / 2;
-
 	camera.aspect = window.innerWidth / window.innerHeight;
 	camera.updateProjectionMatrix();
 
@@ -82,15 +76,16 @@ function onWindowResize() {
 //
 
 function animate() {
-
 	requestAnimationFrame( animate );
 
 	render();
-
 }
 
 function render() {
-
+	curve.yRadius = x % 5
+	x += 0.01
+	applyCurveToPlane(positions, curve)
+	plane.geometry.attributes.position.needsUpdate = true
 	
 	renderer.render( scene, camera );
 	
