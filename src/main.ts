@@ -1,69 +1,81 @@
 import './style.css'
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mix } from 'three/examples/jsm/nodes/Nodes.js';
 
-const PLANE_SEGMENTS = 16
 
 let container: HTMLDivElement;
 let camera: THREE.PerspectiveCamera, scene: THREE.Scene, renderer: THREE.WebGLRenderer;
 let controls: OrbitControls;
-let positions: THREE.BufferAttribute;
-let curve: THREE.EllipseCurve;
-let x = 0;
-let plane: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial, THREE.Object3DEventMap>;
-
+let mixer: THREE.AnimationMixer
+let clips: THREE.AnimationClip[]
 
 init();
 animate();
 
 function init() {
 
+	// Configuring 3js
 	container = document.createElement( 'div' );
 	document.body.appendChild( container );
-
 	camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 1, 2000 );
 	scene = new THREE.Scene();
+	// Making a light
+	const color = 0xFFFFFF;
+	const intensity = 1;
+	const light = new THREE.AmbientLight(color, intensity);
+	scene.add(light);
 
-	scene.add( new THREE.AmbientLight( 0xffffff ) );
+	// Loading model
+	const loader = new GLTFLoader();
 
-	curve = new THREE.EllipseCurve(
-		0,  0,            // ax, aY
-		1, 0.5,           // xRadius, yRadius
-		0,  Math.PI ,  // aStartAngle, aEndAngle
-	);
+	loader.load( "../public/Book.glb", function ( gltf ) {
+		mixer = new THREE.AnimationMixer( gltf.scene )
+		clips = gltf.animations
+		clips.forEach( function ( clip ) {
+			mixer.clipAction( clip ).play();
+		} );		
+		scene.add( gltf.scene );
+	}, undefined, function ( error ) {
+
+		console.error( error );
+
+	} );
+
+
+	// Setting up plane
+	const planeSize = 40;
+	const textureLoader = new THREE.TextureLoader();
+	const texture = textureLoader.load('../public/checker.png');
+	texture.wrapS = THREE.RepeatWrapping;
+	texture.wrapT = THREE.RepeatWrapping;
+	texture.magFilter = THREE.NearestFilter;
+	texture.colorSpace = THREE.SRGBColorSpace;
+	const repeats = planeSize / 2;
+	texture.repeat.set(repeats, repeats);
+	const planeGeo = new THREE.PlaneGeometry(planeSize, planeSize);
+	const planeMat = new THREE.MeshPhongMaterial({
+	  map: texture,
+	  side: THREE.DoubleSide,
+	});
+	const mesh = new THREE.Mesh(planeGeo, planeMat);
+	mesh.rotation.x = Math.PI * -.5;
+	scene.add(mesh);
 	
-
-	const geometry = new THREE.PlaneGeometry(4, 4, PLANE_SEGMENTS, PLANE_SEGMENTS)
-	positions = geometry.getAttribute('position') as THREE.BufferAttribute;
-	applyCurveToPlane(positions, curve)
-
-	const material = new THREE.MeshBasicMaterial({ wireframe: true })
-	plane = new THREE.Mesh(geometry, material)
-	plane.position.z = -15
-	scene.add(plane)
-
+	// Setting up renderer
 	renderer = new THREE.WebGLRenderer( { antialias: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
 	renderer.setSize( window.innerWidth, window.innerHeight );
 	container.appendChild( renderer.domElement );
-
 	container.style.touchAction = 'none';
 
 	controls = new OrbitControls( camera, renderer.domElement )
-	controls.target.set(0, 0, plane.position.z)
+	controls.target.set(0, 0, 0)
 	camera.position.set( 0, 0, 20 );
 	controls.update();
-	//
 
 	window.addEventListener( 'resize', onWindowResize );
-}
-
-function applyCurveToPlane(positions: THREE.BufferAttribute, curve: THREE.EllipseCurve) {
-	const planePoints = curve.getPoints( PLANE_SEGMENTS + 1 );
-	for (let i = 0; i < positions.count; i++) {
-		const point = planePoints[i % (PLANE_SEGMENTS + 1)]
-		positions.setXYZ(i, point.x, positions.getY(i), point.y)
-	}
 }
 
 function onWindowResize() {
@@ -81,12 +93,11 @@ function animate() {
 	render();
 }
 
+const clock = new THREE.Clock()
 function render() {
-	curve.yRadius = x % 5
-	x += 0.01
-	applyCurveToPlane(positions, curve)
-	plane.geometry.attributes.position.needsUpdate = true
-	
+	if (mixer !== undefined) {
+		mixer.update( clock.getDelta() )
+	}
 	renderer.render( scene, camera );
 	
 	controls.update();
