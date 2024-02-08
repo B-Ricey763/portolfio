@@ -30,13 +30,14 @@ function init() {
 	// Loading model
 	const loader = new GLTFLoader();
 
-	loader.load( "../public/Book.glb", function ( gltf ) {
+	loader.load( "magazine.glb", function ( gltf ) {
 		mixer = new THREE.AnimationMixer( gltf.scene )
 		clips = gltf.animations
 		clips.forEach( function ( clip ) {
 			mixer.clipAction( clip ).play();
 		} );		
-		scene.add( gltf.scene );
+		const root = gltf.scene
+		scene.add( root );
 	}, undefined, function ( error ) {
 
 		console.error( error );
